@@ -14,6 +14,7 @@ from datetime import datetime, date, time
 from typing import List, Dict, Optional
 
 PRIORITY_LEVELS = {"low": 1, "medium":2, "high":3}
+VALID_FREQUENCIES = {"daily", "weekly", "once"}
 
 
 @dataclass
@@ -35,6 +36,8 @@ class Task:
             raise ValueError("duration_min must be greater than zero")
         if self.priority not in PRIORITY_LEVELS:
             raise ValueError(f"priority must be one of {list(PRIORITY_LEVELS.keys())}")
+        if self.frequency not in VALID_FREQUENCIES:
+            raise ValueError(f"frequency must be one of {list(VALID_FREQUENCIES)}")
     
     def mark_complete(self) -> None:
         """Mark this task as completed."""
