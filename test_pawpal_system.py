@@ -1,5 +1,5 @@
 import pytest
-from pawpal_system import Task, Pet
+from pawpal_system import Task, Pet, Owner
 
 
 def test_task_methods():
@@ -162,6 +162,42 @@ def test_pet_get_tasks_by_priority():
     assert prioritized[0].priority == "high"
     assert prioritized[1].priority == "medium"
     assert prioritized[2].priority == "low"
+
+
+def test_owner_task_aggregation():
+    owner = Owner(id="o1", name="Jordan", available_time_min=90)
+    pet1 = Pet(id="p1", name="Mochi", species="cat", age=3)
+    pet2 = Pet(id="p2", name="Rex", species="dog", age=6)
+    
+    t1 = Task(id="t1", description="Feed", duration_min=15, priority="high")
+    t2 = Task(id="t2", description="Walk", duration_min=30, priority="medium")
+    t3 = Task(id="t3", description="Brush", duration_min=10, priority="low")
+
+    pet1.add_task(t1)
+    pet2.add_task(t2)
+    pet2.add_task(t3)
+
+    owner.add_pet(pet1)
+    owner.add_pet(pet2)
+
+    all_tasks = owner.get_all_tasks()
+    assert len(all_tasks) == 3
+
+    assert owner.total_time_needed() == 55
+
+
+def test_owner_pet_remove():
+    owner = Owner(id="o1", name="Jordan", available_time_min=90)
+    pet1 = Pet(id="p1", name="Mochi", species="cat", age=3)
+    pet2 = Pet(id="p2", name="Rex", species="dog", age=6)
+
+    owner.add_pet(pet1)
+    owner.add_pet(pet2)
+    assert len(owner.pets) == 2
+
+    assert owner.remove_pet("p1") is True
+    assert len(owner.pets) == 1
+    assert owner.remove_pet("invalid") is False
 
 if __name__ == "__main__":
     pytest.main(["-q"])

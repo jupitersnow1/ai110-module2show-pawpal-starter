@@ -115,19 +115,26 @@ class Owner:
     
     def add_pet(self, pet: Pet) -> None:
         """Add a pet to this owner's pet list."""
-        pass
+        self.pets.append(pet)
     
     def remove_pet(self, pet_id: str) -> bool:
         """Remove a pet by ID. Returns True if successful."""
-        pass
+        for i, p in enumerate(self.pets):
+            if p.id == pet_id:
+                self.pets.pop(i)
+                return True
+        return False
     
     def get_all_tasks(self) -> List[Task]:
         """Return all pending tasks across all pets."""
-        pass
+        tasks: List[Task] = []
+        for p in self.pets:
+            tasks.extend(p.get_pending_tasks())
+        return tasks
     
     def total_time_needed(self) -> int:
         """Calculate total minutes needed for all pending tasks."""
-        pass
+        return sum(t.duration_min for t in self.get_all_tasks())
 
 
 @dataclass
