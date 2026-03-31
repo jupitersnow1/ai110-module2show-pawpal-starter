@@ -10,7 +10,7 @@ Contains the core domain classes for pet care scheduling:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 from typing import List, Dict, Optional
 
 PRIORITY_LEVELS = {"low": 1, "medium":2, "high":3}
@@ -159,16 +159,66 @@ class Scheduler:
     def build_daily_plan(self, start_time: time = None) -> List[ScheduleEntry]:
         """
         Generate a daily plan for the owner.
-        
+
         Returns a list of scheduled task entries.
         Populates self.overflow_tasks with tasks that didn't fit.
         """
-        pass
-    
+        if start_time is None:
+            start_time = time(8, 0)
+
+        self.schedule = []
+        self.overflow_tasks = []
+
+        all_tasks = self.owner.get_all_tasks()
+        eligible_tasks = self.apply_constraints(all_tasks)
+
+        # Sort by priority (high to low), then shorter tasks first to maximize coverage
+        eligible_tasks.sort(key=lambda t: (PRIORITY_LEVELS.get(t.priority, 1), -t.duration_min), reverse=True)
+
+        remaining_minutes = self.owner.available_time_min
+        current_dt = datetime.combine(self.date, start_time)
+
+        for task in eligible_tasks:
+            if task.duration_min <= remaining_minutes:
+                pet = self._find_pet_for_task(task)
+                entry = ScheduleEntry(task=task, pet=pet, start=current_dt, end=current_dt + timedelta(minutes=task.duration_min))
+                self.schedule.append(entry)
+                current_dt = entry.end
+                remaining_minutes -= task.duration_min
+            else:
+                self.overflow_tasks.append(task)
+
+        return self.schedule
+
+    def _find_pet_for_task(self, task: Task) -> Optional[Pet]:
+        for pet in self.owner.pets:
+            if task in pet.tasks:
+                return pet
+        return None
+
     def apply_constraints(self, tasks: List[Task]) -> List[Task]:
         """Filter tasks based on owner constraints (time, preferences, etc.)."""
-        pass
-    
+        return [t for t in tasks if t.duration_min <= self.owner.available_time_min and not t.is_complete]
+
     def explain_decision(self) -> str:
         """Generate a human-readable explanation of why tasks were scheduled."""
-        pass
+        lines = [f"Daily plan for owner {self.owner.name} on {self.date.isoformat()}:\n"]
+
+        if not self.schedule and not self.overflow_tasks:
+            return "No tasks scheduled. No pending tasks or all tasks exceed constraints."
+
+        if self.schedule:
+            lines.append("Included tasks:")
+            for e in self.schedule:
+                lines.append(
+                    f" - {e.task.description} (pet: {e.pet.name if e.pet else 'unknown'}, priority: {e.task.priority}, "
+                    f"{e.task.duration_min} min, {e.start.strftime('%H:%M')} - {e.end.strftime('%H:%M')})"
+                )
+
+        if self.overflow_tasks:
+            lines.append("\nOverflow tasks:")
+            for t in self.overflow_tasks:
+                lines.append(f" - {t.description} (priority: {t.priority}, {t.duration_min} min)")
+
+        lines.append("\nReasoning: Tasks are ordered by priority and duration, then placed until time budget is exhausted.")
+        return "\n".join(lines)

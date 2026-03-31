@@ -1,5 +1,6 @@
 import pytest
-from pawpal_system import Task, Pet, Owner
+from datetime import date, time
+from pawpal_system import Task, Pet, Owner, Scheduler
 
 
 def test_task_methods():
@@ -198,6 +199,35 @@ def test_owner_pet_remove():
     assert owner.remove_pet("p1") is True
     assert len(owner.pets) == 1
     assert owner.remove_pet("invalid") is False
+
+
+def test_scheduler_build_daily_plan():
+    owner = Owner(id="o1", name="Jordan", available_time_min=40)
+    pet = Pet(id="p1", name="Mochi", species="cat", age=3)
+    
+    t1 = Task(id="t1", description="Feed", duration_min=15, priority="high")
+    t2 = Task(id="t2", description="Play", duration_min=30, priority="medium")
+    t3 = Task(id="t3", description="Brush", duration_min=10, priority="low")
+
+    pet.add_task(t1)
+    pet.add_task(t2)
+    pet.add_task(t3)
+
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner=owner, date=date(2026,3,31))
+    schedule = scheduler.build_daily_plan(start_time=time(8,0))
+
+    assert len(schedule) == 2
+    assert schedule[0].task.description == "Feed"
+    assert schedule[1].task.description == "Brush"
+    assert len(scheduler.overflow_tasks) == 1
+    assert scheduler.overflow_tasks[0].description == "Play"
+
+    explanation = scheduler.explain_decision()
+    assert "Included tasks:" in explanation
+    assert "Overflow tasks:" in explanation
+    assert "Reasoning:" in explanation
+
 
 if __name__ == "__main__":
     pytest.main(["-q"])
