@@ -100,6 +100,12 @@
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
 
+**Tradeoff: O(n²) pairwise conflict detection vs. a sorted interval sweep**
+
+The detect_conflicts method checks every pair of entries for overlaps, which makes it O(n²) (e.g., 10 tasks → 45 comparisons, 100 → 4,950). A more efficient approach would be to sort by start time and only compare adjacent entries (O(n log n)).
+
+That said, the tradeoff is fine here. A typical pet owner will only have around 10–20 tasks, so the performance difference is negligible. The nested loop is also easier to read and reason about, so prioritizing simplicity over optimization makes sense.
+
 ---
 
 ## 3. AI Collaboration

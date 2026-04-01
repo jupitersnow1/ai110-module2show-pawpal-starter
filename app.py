@@ -53,25 +53,27 @@ else:
     selected_pet_id = None
 
 st.subheader("Tasks")
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     task_title = st.text_input("Task title", value="Morning walk", key="task_title")
 with col2:
     duration = st.number_input("Duration (minutes)", min_value=5, max_value=240, value=20, step=5, key="duration")
 with col3:
     priority = st.selectbox("Priority", ["low", "medium", "high"], index=2, key="task_priority")
+with col4:
+    frequency = st.selectbox("Frequency", ["daily", "weekly", "once"], index=0, key="task_frequency")
 
 if st.button("Add task", key="add_task"):
     if selected_pet_id:
         target_pet = next((p for p in st.session_state.pets if p.id == selected_pet_id), None)
         if target_pet:
             task_id = f"task{sum(len(p.tasks) for p in st.session_state.pets) + 1}"
-            new_task = Task(id=task_id, description=task_title, duration_min=int(duration), priority=priority, frequency="daily")
+            new_task = Task(id=task_id, description=task_title, duration_min=int(duration), priority=priority, frequency=frequency)
             target_pet.add_task(new_task)
     else:
         st.error("Please add and select a pet first before adding tasks.")
 
-all_tasks = [{"pet": p.name, "task": t.description, "duration_min": t.duration_min, "priority": t.priority} for p in st.session_state.pets for t in p.tasks]
+all_tasks = [{"pet": p.name, "task": t.description, "duration_min": t.duration_min, "priority": t.priority, "frequency": t.frequency} for p in st.session_state.pets for t in p.tasks]
 if all_tasks:
     st.write("Current tasks:")
     st.table(all_tasks)

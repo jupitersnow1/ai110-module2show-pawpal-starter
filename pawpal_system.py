@@ -57,6 +57,27 @@ class Task:
     def mark_complete(self) -> None:
         """Mark this task as completed."""
         self.is_complete = True
+
+    def next_occurrence(self, new_id: str) -> Optional["Task"]:
+        """
+        Return a new Task instance for the next recurrence, or None if frequency is 'once'.
+
+        The new task's last_scheduled is set so is_due() returns True on the correct future date:
+          - daily:  due tomorrow  (last_scheduled = today)
+          - weekly: due in 7 days (last_scheduled = today)
+        """
+        if self.frequency == "once":
+            return None
+        today = date.today()
+        return Task(
+            id=new_id,
+            description=self.description,
+            duration_min=self.duration_min,
+            priority=self.priority,
+            frequency=self.frequency,
+            constraints=self.constraints.copy(),
+            last_scheduled=today,
+        )
     
     def priority_score(self) -> float:
         """Calculate a numeric score for prioritization."""
@@ -233,6 +254,25 @@ class Scheduler:
         """Filter tasks based on owner constraints and recurrence rules."""
         return [t for t in tasks if t.duration_min <= self.owner.available_time_min and t.is_due(self.date)]
 
+    def complete_task(self, task_id: str) -> Optional[Task]:
+        """
+        Mark a scheduled task complete and queue the next occurrence for recurring tasks.
+
+        Returns the newly created Task if one was queued, or None for one-time tasks.
+        """
+        for entry in self.schedule:
+            if entry.task.id == task_id:
+                entry.task.mark_complete()
+                pet = entry.pet
+                if pet is None:
+                    return None
+                new_id = f"{task_id}_next"
+                new_task = entry.task.next_occurrence(new_id)
+                if new_task:
+                    pet.add_task(new_task)
+                return new_task
+        return None
+
     def detect_conflicts(self) -> List[tuple]:
         """
         Return a list of (entry_a, entry_b) pairs whose time windows overlap.
@@ -248,6 +288,24 @@ class Scheduler:
                 if a.start < b.end and b.start < a.end:
                     conflicts.append((a, b))
         return conflicts
+
+    def warn_conflicts(self) -> List[str]:
+        """
+        Return a list of human-readable warning strings for any overlapping schedule entries.
+
+        Returns an empty list when the schedule is conflict-free.
+        """
+        warnings = []
+        for a, b in self.detect_conflicts():
+            pet_a = a.pet.name if a.pet else "unknown"
+            pet_b = b.pet.name if b.pet else "unknown"
+            warnings.append(
+                f"WARNING: '{a.task.description}' ({pet_a}, "
+                f"{a.start.strftime('%H:%M')}-{a.end.strftime('%H:%M')}) conflicts with "
+                f"'{b.task.description}' ({pet_b}, "
+                f"{b.start.strftime('%H:%M')}-{b.end.strftime('%H:%M')})"
+            )
+        return warnings
 
     def sort_by_time(self) -> List[ScheduleEntry]:
         """Return scheduled entries sorted by start time (earliest first)."""

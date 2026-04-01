@@ -392,5 +392,91 @@ def test_detect_conflicts_adjacent_entries_do_not_conflict():
     assert scheduler.detect_conflicts() == []
 
 
+# --- warn_conflicts ---
+
+def test_warn_conflicts_clean_schedule_returns_empty():
+    scheduler, *_ = make_scheduler()
+    assert scheduler.warn_conflicts() == []
+
+
+def test_warn_conflicts_returns_string_warnings():
+    scheduler, _, pet1, *_ = make_scheduler()
+    first = scheduler.schedule[0]
+    overlap_task = Task(id="overlap", description="Overlap", duration_min=10, priority="low")
+    overlap_entry = ScheduleEntry(
+        task=overlap_task, pet=pet1,
+        start=first.start,
+        end=first.start + timedelta(minutes=10)
+    )
+    scheduler.schedule.append(overlap_entry)
+    warnings = scheduler.warn_conflicts()
+    assert len(warnings) == 1
+    assert "WARNING" in warnings[0]
+    assert "Overlap" in warnings[0] or first.task.description in warnings[0]
+
+
+# --- next_occurrence / complete_task ---
+
+def test_next_occurrence_daily_creates_new_task():
+    t = Task(id="t1", description="Walk", duration_min=20, priority="high", frequency="daily")
+    next_t = t.next_occurrence(new_id="t1_next")
+    assert next_t is not None
+    assert next_t.id == "t1_next"
+    assert next_t.description == "Walk"
+    assert next_t.frequency == "daily"
+    assert next_t.last_scheduled == date.today()
+    assert next_t.is_complete is False
+
+
+def test_next_occurrence_weekly_creates_new_task():
+    t = Task(id="t1", description="Bath", duration_min=20, priority="low", frequency="weekly")
+    next_t = t.next_occurrence(new_id="t1_next")
+    assert next_t is not None
+    assert next_t.frequency == "weekly"
+    assert next_t.last_scheduled == date.today()
+
+
+def test_next_occurrence_once_returns_none():
+    t = Task(id="t1", description="Vet", duration_min=60, priority="high", frequency="once")
+    assert t.next_occurrence(new_id="t1_next") is None
+
+
+def test_next_occurrence_due_date_is_correct():
+    t = Task(id="t1", description="Walk", duration_min=20, priority="low", frequency="daily")
+    next_t = t.next_occurrence(new_id="t1_next")
+    # last_scheduled = today means is_due returns False today, True tomorrow
+    assert next_t.is_due(date.today()) is False
+    assert next_t.is_due(date.today() + timedelta(days=1)) is True
+
+
+def test_complete_task_marks_done_and_queues_next():
+    scheduler, _, pet1, _, t1, *_ = make_scheduler()
+    tasks_before = len(pet1.tasks)
+    next_task = scheduler.complete_task(t1.id)
+    assert t1.is_complete is True
+    assert next_task is not None
+    assert len(pet1.tasks) == tasks_before + 1
+    assert pet1.tasks[-1].id == f"{t1.id}_next"
+
+
+def test_complete_task_once_does_not_queue_next():
+    owner = Owner(id="o1", name="Jordan", available_time_min=120)
+    pet = Pet(id="p1", name="Buddy", species="dog", age=3)
+    t = Task(id="vet1", description="Vet checkup", duration_min=60, priority="high", frequency="once")
+    pet.add_task(t)
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner=owner, date=date.today())
+    scheduler.build_daily_plan()
+    next_task = scheduler.complete_task("vet1")
+    assert t.is_complete is True
+    assert next_task is None
+    assert len(pet.tasks) == 1  # no new task added
+
+
+def test_complete_task_unknown_id_returns_none():
+    scheduler, *_ = make_scheduler()
+    assert scheduler.complete_task("nonexistent") is None
+
+
 if __name__ == "__main__":
     pytest.main(["-q"])

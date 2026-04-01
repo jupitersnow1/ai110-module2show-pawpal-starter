@@ -6,7 +6,7 @@ Temporary testing ground to verify backend logic works in the terminal.
 """
 
 from pawpal_system import Owner, Pet, Task, Scheduler, ScheduleEntry
-from datetime import date, timedelta, datetime
+from datetime import date, time, timedelta, datetime
 
 def main():
     # Create an Owner
@@ -55,26 +55,40 @@ def main():
     for entry in scheduler.sort_by_time():
         print(f"  {entry.start.strftime('%H:%M')} - {entry.end.strftime('%H:%M')}  [{entry.pet.name}] {entry.task.description}")
 
+    print("\nRecurring task automation:")
+    daily_entry = next((e for e in scheduler.schedule if e.task.frequency == "daily"), None)
+    if daily_entry:
+        print(f"  Completing '{daily_entry.task.description}' (daily)...")
+        next_task = scheduler.complete_task(daily_entry.task.id)
+        if next_task:
+            print(f"  Next occurrence queued: '{next_task.description}' | due after: {next_task.last_scheduled + timedelta(days=1)}")
+        else:
+            print("  No next occurrence (once-only task).")
+
     print("\nConflict detection (normal schedule — expect none):")
-    conflicts = scheduler.detect_conflicts()
-    if conflicts:
-        for a, b in conflicts:
-            print(f"  CONFLICT: '{a.task.description}' ({a.start.strftime('%H:%M')}-{a.end.strftime('%H:%M')}) "
-                  f"overlaps '{b.task.description}' ({b.start.strftime('%H:%M')}-{b.end.strftime('%H:%M')})")
-    else:
+    for warning in scheduler.warn_conflicts():
+        print(f"  {warning}")
+    if not scheduler.warn_conflicts():
         print("  No conflicts found.")
 
-    # Manually inject an overlapping entry to prove detection works
-    fake_start = scheduler.schedule[0].start
-    fake_end = fake_start + timedelta(minutes=10)
-    overlap_task = Task(id="overlap1", description="Overlapping task", duration_min=10, priority="low")
-    overlap_pet = owner.pets[0]
-    scheduler.schedule.append(ScheduleEntry(task=overlap_task, pet=overlap_pet, start=fake_start, end=fake_end))
-
-    print("\nConflict detection (after injecting overlap — expect 1):")
-    for a, b in scheduler.detect_conflicts():
-        print(f"  CONFLICT: '{a.task.description}' ({a.start.strftime('%H:%M')}-{a.end.strftime('%H:%M')}) "
-              f"overlaps '{b.task.description}' ({b.start.strftime('%H:%M')}-{b.end.strftime('%H:%M')})")
+    # Conflict scenario: build a scheduler where two tasks share the same start time
+    print("\nConflict detection (two tasks at 08:00 — expect warning):")
+    conflict_owner = Owner(id="owner2", name="Alex", available_time_min=120)
+    conflict_pet = Pet(id="cp1", name="Luna", species="dog", age=2)
+    ta = Task(id="ca1", description="Morning walk", duration_min=30, priority="high")
+    tb = Task(id="ca2", description="Vet appointment", duration_min=45, priority="high")
+    conflict_pet.add_task(ta)
+    conflict_pet.add_task(tb)
+    conflict_owner.add_pet(conflict_pet)
+    conflict_scheduler = Scheduler(owner=conflict_owner, date=date.today())
+    conflict_scheduler.build_daily_plan(start_time=time(8, 0))
+    # Force both entries to start at 08:00 to simulate a real conflict
+    same_start = conflict_scheduler.schedule[0].start
+    for entry in conflict_scheduler.schedule:
+        entry.start = same_start
+        entry.end = same_start + timedelta(minutes=entry.task.duration_min)
+    for warning in conflict_scheduler.warn_conflicts():
+        print(f"  {warning}")
 
     print("\nRecurrence check:")
     print(f"  Bath time is_due today: {task5.is_due(date.today())} (weekly, last done 3 days ago — expect False)")
