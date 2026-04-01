@@ -40,21 +40,19 @@ age = st.number_input("Age", min_value=1, max_value=30, value=3, key="age")
 
 if st.button("Add pet", key="add_pet"):
     pet_id = f"pet{len(st.session_state.pets)+1}"
-    st.session_state.pets.append({"id": pet_id, "name": pet_name, "species": species, "age": age})
+    new_pet = Pet(id=pet_id, name=pet_name, species=species, age=age)
+    st.session_state.pets.append(new_pet)
 
 if st.session_state.pets:
     st.write("Current pets:")
-    st.table(st.session_state.pets)
-    selected_pet = st.selectbox("Assign task to pet", [p["id"] + ": " + p["name"] for p in st.session_state.pets], key="selected_pet")
+    st.table([{"id": p.id, "name": p.name, "species": p.species, "age": p.age} for p in st.session_state.pets])
+    selected_pet = st.selectbox("Assign task to pet", [p.id + ": " + p.name for p in st.session_state.pets], key="selected_pet")
     selected_pet_id = selected_pet.split(":")[0]
 else:
     st.info("Add at least one pet first.")
     selected_pet_id = None
 
 st.subheader("Tasks")
-if "tasks" not in st.session_state:
-    st.session_state.tasks = []
-
 col1, col2, col3 = st.columns(3)
 with col1:
     task_title = st.text_input("Task title", value="Morning walk", key="task_title")
@@ -65,20 +63,18 @@ with col3:
 
 if st.button("Add task", key="add_task"):
     if selected_pet_id:
-        st.session_state.tasks.append(
-            {
-                "pet_id": selected_pet_id,
-                "title": task_title,
-                "duration_minutes": int(duration),
-                "priority": priority,
-            }
-        )
+        target_pet = next((p for p in st.session_state.pets if p.id == selected_pet_id), None)
+        if target_pet:
+            task_id = f"task{sum(len(p.tasks) for p in st.session_state.pets) + 1}"
+            new_task = Task(id=task_id, description=task_title, duration_min=int(duration), priority=priority, frequency="daily")
+            target_pet.add_task(new_task)
     else:
         st.error("Please add and select a pet first before adding tasks.")
 
-if st.session_state.tasks:
+all_tasks = [{"pet": p.name, "task": t.description, "duration_min": t.duration_min, "priority": t.priority} for p in st.session_state.pets for t in p.tasks]
+if all_tasks:
     st.write("Current tasks:")
-    st.table(st.session_state.tasks)
+    st.table(all_tasks)
 else:
     st.info("No tasks yet. Add one above.")
 
@@ -88,26 +84,9 @@ st.subheader("Build Schedule")
 if st.button("Generate schedule", key="generate_schedule"):
     owner = Owner(id="owner1", name=owner_name, available_time_min=available_time)
 
-    # Recreate pets from session state
-    pet_lookup = {}
-    for p_data in st.session_state.pets:
-        pet_obj = Pet(id=p_data["id"], name=p_data["name"], species=p_data["species"], age=p_data["age"])
+    # Use the Pet objects already built in session state (tasks are already attached)
+    for pet_obj in st.session_state.pets:
         owner.add_pet(pet_obj)
-        pet_lookup[p_data["id"]] = pet_obj
-
-    # Add tasks to proper pets
-    for idx, t in enumerate(st.session_state.tasks, start=1):
-        target_pet = pet_lookup.get(t.get("pet_id"))
-        if not target_pet:
-            continue
-        task = Task(
-            id=f"task{idx}",
-            description=t["title"],
-            duration_min=t["duration_minutes"],
-            priority=t["priority"],
-            frequency="daily"
-        )
-        target_pet.add_task(task)
 
     # Create Scheduler and build plan
     scheduler = Scheduler(owner=owner, date=date.today())
