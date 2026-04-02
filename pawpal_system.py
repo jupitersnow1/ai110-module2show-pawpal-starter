@@ -251,8 +251,8 @@ class Scheduler:
         return None
 
     def apply_constraints(self, tasks: List[Task]) -> List[Task]:
-        """Filter tasks based on owner constraints and recurrence rules."""
-        return [t for t in tasks if t.duration_min <= self.owner.available_time_min and t.is_due(self.date)]
+        """Filter tasks based on recurrence rules. Tasks that don't fit the time budget go to overflow."""
+        return [t for t in tasks if t.is_due(self.date)]
 
     def complete_task(self, task_id: str) -> Optional[Task]:
         """

@@ -31,6 +31,29 @@ Phase 4 added algorithmic intelligence to the scheduler. The following features 
 - **Recurring task gating** — `Task.is_due(today)` checks a task's `frequency` (`daily`, `weekly`, `once`) against its `last_scheduled` date before it enters the schedule. When a recurring task is completed via `Scheduler.complete_task()`, the next occurrence is automatically queued on the pet.
 - **Conflict detection** — `Scheduler.detect_conflicts()` scans all scheduled entries for overlapping time windows. `Scheduler.warn_conflicts()` returns the same results as human-readable warning strings without crashing the program.
 
+## Testing PawPal+
+
+Run the full test suite with:
+
+```bash
+python -m pytest test_pawpal_system.py -v
+```
+
+The suite contains 46 tests covering:
+
+- **Task validation** — invalid duration, priority, and frequency values raise errors
+- **Pet management** — add, remove, edit tasks; filter by priority and status
+- **Owner aggregation** — get all tasks across pets, calculate total time needed
+- **Scheduler** — daily plan generation, priority ordering, overflow handling
+- **Sorting** — `sort_by_time` returns entries in chronological order
+- **Filtering** — `filter_tasks` by pet, status, or both combined
+- **Recurrence gating** — `is_due` correctly gates daily, weekly, and once tasks; `complete_task` queues next occurrence automatically
+- **Conflict detection** — overlapping and same-start-time entries are flagged; adjacent entries are not
+- **Edge cases** — pet with no tasks, owner with no pets, all tasks exceeding available time, no duplicate occurrences on schedule re-run
+
+**Confidence level: ⭐⭐⭐⭐ (4/5)**
+The core scheduling logic and edge cases are well covered. A fifth star would require testing the Streamlit UI interactions and per-day availability (a planned future feature).
+
 ## Getting started
 
 ### Setup

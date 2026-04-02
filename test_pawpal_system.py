@@ -453,6 +453,7 @@ def test_complete_task_marks_done_and_queues_next():
     scheduler, _, pet1, _, t1, *_ = make_scheduler()
     tasks_before = len(pet1.tasks)
     next_task = scheduler.complete_task(t1.id)
+
     assert t1.is_complete is True
     assert next_task is not None
     assert len(pet1.tasks) == tasks_before + 1
@@ -476,6 +477,80 @@ def test_complete_task_once_does_not_queue_next():
 def test_complete_task_unknown_id_returns_none():
     scheduler, *_ = make_scheduler()
     assert scheduler.complete_task("nonexistent") is None
+
+def test_all_tasks_exceed_available_time():
+    owner = Owner(id="o1", name="Jordan", available_time_min=30)
+    pet = Pet(id="p1", name="Buddy", species="dog", age=3)
+    t1 = Task(id="t1", description="Long walk", duration_min=60, priority="high")
+    t2 = Task(id="t2", description="Long bath", duration_min=45, priority="medium")
+    pet.add_task(t1)
+    pet.add_task(t2)
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner=owner, date=date.today())
+    scheduler.build_daily_plan()
+
+    assert len(scheduler.schedule) == 0
+    assert len(scheduler.overflow_tasks) == 2
+
+
+def test_pet_with_no_tasks():
+    owner = Owner(id = "o1", name = "Jordan", available_time_min= 60)
+    pet = Pet(id = "p1", name = "Buddy", species="dog", age = 3)
+
+    # no add_task calls
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner = owner, date = date.today())
+    scheduler.build_daily_plan()
+
+    assert len(scheduler.schedule) == 0
+    assert len(scheduler.overflow_tasks) == 0
+
+def test_owner_with_no_pets():
+    owner = Owner(id = "o1", name = "Michael", available_time_min= 120)
+    all_tasks = owner.get_all_tasks()
+    
+    assert len(all_tasks) == 0
+    assert owner.total_time_needed() == 0
+
+def test_detect_conflicts_same_start_time():
+    owner = Owner(id = "o1", name = "Jordan", available_time_min= 120)
+    pet = Pet(id = "p1", name = "Buddy", species="dog", age = 3)
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner = owner, date = date.today())
+
+    # manullay place two entries at the same start time 
+    t1 = Task(id = "t1", description="Walk", duration_min= 30, priority="high")
+    t2 = Task(id = "t2", description="Feed", duration_min=45, priority = "medium")
+
+    same_start = datetime(2026, 4, 1, 1, 8, 0)
+
+    scheduler.schedule = [
+    ScheduleEntry(task=t1, pet=pet, start=same_start, end=same_start + timedelta(minutes=30)),
+    ScheduleEntry(task=t2, pet=pet, start=same_start, end=same_start + timedelta(minutes=45)),
+    ]
+
+    assert len(scheduler.detect_conflicts()) == 1
+
+    
+
+def test_complete_task_no_duplicate_on_rerun():
+    owner = Owner(id="o1", name="Jordan", available_time_min=120)
+    pet = Pet(id="p1", name="Buddy", species="dog", age=3)
+    t1 = Task(id="t1", description="Walk", duration_min=30, priority="high", frequency="daily")
+    pet.add_task(t1)
+    owner.add_pet(pet)
+    scheduler = Scheduler(owner=owner, date=date.today())
+    scheduler.build_daily_plan()
+
+    # complete the task — next occurrence should be queued
+    scheduler.complete_task("t1")
+    assert len(pet.tasks) == 2 # original + next occurrence
+
+    # re-run the plan — next occurrence is not due today
+    scheduler.build_daily_plan()
+    scheduled_ids = [e.task.id for e in scheduler.schedule]
+    assert "t1_next" not in scheduled_ids  # should not be scheduled today
+    assert len(pet.tasks) == 2 # still only one next occurrence, no duplicate
 
 
 if __name__ == "__main__":
